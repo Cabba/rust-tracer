@@ -1,4 +1,4 @@
-use crate::vec3::Vec3;
+use crate::math::Vec3;
 
 /// Computes the ideal ratio (without any rounding) between width and height.
 /// The formula is

@@ -1,6 +1,6 @@
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
-use crate::vec3::Point3;
+use crate::math::Point3;
 
 pub struct Sphere {
     pub center: Point3,

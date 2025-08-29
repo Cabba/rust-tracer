@@ -33,6 +33,17 @@ impl Interval {
         Self { min: -INF, max: 0. }
     }
 
+    pub fn clamp(&self, v: f64) -> f64 {
+        if v < self.min {
+            return self.min;
+        }
+        if v > self.max {
+            return self.max;
+        }
+
+        v
+    }
+
     pub fn size(&self) -> f64 {
         self.max - self.min
     }

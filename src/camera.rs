@@ -1,8 +1,8 @@
 use crate::hittable::{Hittable, HittableList};
 use crate::image::{Color, Image};
 use crate::interval::Interval;
+use crate::math::{Point3, Vec3, lerp};
 use crate::ray::Ray;
-use crate::vec3::{Point3, Vec3, lerp};
 
 use std::io;
 
@@ -16,13 +16,17 @@ pub mod ppm {
     }
 
     pub fn write_color(w: &mut impl io::Write, c: &Color) -> io::Result<()> {
-        write!(
-            w,
-            "{} {} {} ",
-            (255.0 * c[0]) as i16,
-            (255.0 * c[1]) as i16,
-            (255.0 * c[2]) as i16,
-        )?;
+        let r = c.x();
+        let g = c.y();
+        let b = c.z();
+
+        let intensity = Interval::new(0.0, 0.999);
+
+        let rbyte = 255.0 * intensity.clamp(r);
+        let gbyte = 255.0 * intensity.clamp(g);
+        let bbyte = 255.0 * intensity.clamp(b);
+
+        write!(w, "{} {} {} ", rbyte as i16, gbyte as i16, bbyte as i16,)?;
         Ok(())
     }
 
@@ -30,6 +34,11 @@ pub mod ppm {
         writeln!(w, "")?;
         Ok(())
     }
+}
+pub struct ViewportContext {
+    pub delta_u: Vec3,
+    pub delta_v: Vec3,
+    pub upper_left_pixel: Point3,
 }
 
 pub struct Camera {
@@ -40,6 +49,9 @@ pub struct Camera {
     pub viewport_width: f64,
 
     pub image: Image,
+
+    /// Count of random samples for each pixel used for antialiasing
+    pub sample_per_pixel: i16,
 }
 
 impl Camera {
@@ -50,6 +62,7 @@ impl Camera {
             viewport_width: 0.0,
             image: img,
             center: Point3::zero(),
+            sample_per_pixel: 4,
         }
     }
 
@@ -84,21 +97,26 @@ impl Camera {
         self.upper_left_viewport() + 0.5 * (self.delta_u() + self.delta_v())
     }
 
+    pub fn viewport_context(&self) -> ViewportContext {
+        ViewportContext {
+            upper_left_pixel: self.upper_left_pixel(),
+            delta_u: self.delta_u(),
+            delta_v: self.delta_v(),
+        }
+    }
+
     pub fn render(&self, target: &mut impl io::Write, world: &HittableList) -> io::Result<()> {
+        let viewport_ctx = self.viewport_context();
+
         ppm::header(target, &self.image)?;
-
-        let px00_loc = self.upper_left_pixel();
-        let delta_u = self.delta_u();
-        let delta_v = self.delta_v();
-
         for v in 0..self.image.height {
             for u in 0..self.image.width {
-                // Compute ray
-                let pixel_center = px00_loc + (u as f64 * delta_u + v as f64 * delta_v);
-                let dir = pixel_center - self.center;
-                let ray = Ray::new(self.center, dir);
-
-                let color = Camera::ray_color(&ray, &world);
+                let mut color = Color::zero();
+                for _ in 0..self.sample_per_pixel {
+                    let ray = self.get_ray(u, v, &viewport_ctx);
+                    color += Camera::ray_color(&ray, &world);
+                }
+                color = color / self.sample_per_pixel as f64;
 
                 ppm::write_color(target, &color)?;
             }
@@ -120,5 +138,34 @@ impl Camera {
         let t = 0.5 * (unit_direction.y() + 1.0);
 
         lerp(&white, &blue, t)
+    }
+
+    pub fn get_ray(&self, u: i32, v: i32, viewport_ctx: &ViewportContext) -> Ray {
+        let offset = Camera::sample_square();
+
+        let pixel_sample = viewport_ctx.upper_left_pixel
+            + ((u as f64 + offset.x()) * viewport_ctx.delta_u
+                + (v as f64 + offset.y()) * viewport_ctx.delta_v);
+
+        let ray_origin = self.center;
+        let ray_dir = pixel_sample - self.center;
+
+        let ray = Ray::new(ray_origin, ray_dir);
+
+        ray
+    }
+
+    /// Returns a random point in the square `[-0.5, 0.5] x [-0.5, 0.5] x {0}`
+    pub fn sample_square() -> Vec3 {
+        Vec3::new(
+            Camera::normal_random() - 0.5,
+            Camera::normal_random() - 0.5,
+            0.,
+        )
+    }
+
+    /// Returns a random number in the range [0, 1]
+    fn normal_random() -> f64 {
+        rand::random_range(0.0..1.0)
     }
 }

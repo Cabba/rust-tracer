@@ -1,4 +1,4 @@
-use crate::vec3::Vec3;
+use crate::math::Vec3;
 
 pub struct Ray {
     orig: Vec3,

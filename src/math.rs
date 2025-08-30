@@ -1,3 +1,4 @@
+use crate::random::normal_random;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
 /// Linear interpolation between two vectors, this functions implements
@@ -27,6 +28,36 @@ impl Vec3 {
 
     pub fn unit() -> Self {
         Vec3::new(1., 1., 1.)
+    }
+
+    /// Generates a random vector in which each component lies in the unit sphere
+    pub fn unit_random_on_sphere() -> Self {
+        loop {
+            let vec = Vec3::random(-1.0, 1.0);
+            let len_sq = vec.length2();
+            if 1e-100 <= len_sq && len_sq <= 1.0 {
+                return vec / len_sq.sqrt();
+            }
+        }
+    }
+
+    /// Generates a random vector that lies in a hemiphere defined by a
+    /// normal vector.
+    pub fn unit_random_on_hemisphere(normal: &Vec3) -> Self {
+        let vec = Vec3::unit_random_on_sphere();
+        if normal.dot(&vec) > 0.0 { vec } else { -vec }
+    }
+
+    /// Generate a random vector in which each component is in the range [min, max]
+    pub fn random(min: f64, max: f64) -> Self {
+        assert!(min <= max);
+
+        let range = max - min;
+        Vec3::new(
+            normal_random() * range + min,
+            normal_random() * range + min,
+            normal_random() * range + min,
+        )
     }
 
     pub fn x(&self) -> f64 {
@@ -204,10 +235,30 @@ mod vec3_tests {
         assert_eq!(p.y(), 2.0);
         assert_eq!(p.z(), 3.0);
 
+        let np = -p;
+        assert_eq!(np.x(), -1.0);
+        assert_eq!(np.y(), -2.0);
+        assert_eq!(np.z(), -3.0);
+
         let z = Vec3::zero();
         assert_eq!(z.x(), 0.0);
         assert_eq!(z.y(), 0.0);
         assert_eq!(z.z(), 0.0);
+    }
+
+    #[test]
+    fn random() {
+        for _ in 0..100 {
+            let p = Vec3::random(-1.0, 1.0);
+            assert!(p.x() >= -1.0 && p.x() <= 1.0);
+            assert!(p.y() >= -1.0 && p.y() <= 1.0);
+            assert!(p.z() >= -1.0 && p.z() <= 1.0);
+        }
+
+        for _ in 0..100 {
+            let p = Vec3::random_on_unit_sphere();
+            assert!(p.length() <= 1.0 + 1e-12 /* remove numerical error*/);
+        }
     }
 
     #[test]

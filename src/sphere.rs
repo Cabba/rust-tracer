@@ -38,9 +38,9 @@ impl Hittable for Sphere {
 
         // Check if root in range [t_min, t_max]
         let mut root = (h - sqrtd) / a;
-        if !bounds.contains(root) {
+        if !bounds.surrounds(root) {
             root = (h + sqrtd) / a;
-            if !bounds.contains(root) {
+            if !bounds.surrounds(root) {
                 return None;
             }
         }

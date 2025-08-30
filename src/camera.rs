@@ -2,9 +2,18 @@ use crate::hittable::{Hittable, HittableList};
 use crate::image::{Color, Image};
 use crate::interval::Interval;
 use crate::math::{Point3, Vec3, lerp};
+use crate::random::normal_random;
 use crate::ray::Ray;
 
 use std::io;
+
+/// Transform a component from linear to gamma using "gamma 2" transform
+pub fn linear_to_gamma(linear_component: f64) -> f64 {
+    if linear_component > 0.0 {
+        return linear_component.sqrt();
+    }
+    0.0
+}
 
 /// PPM extension functions
 pub mod ppm {
@@ -16,9 +25,9 @@ pub mod ppm {
     }
 
     pub fn write_color(w: &mut impl io::Write, c: &Color) -> io::Result<()> {
-        let r = c.x();
-        let g = c.y();
-        let b = c.z();
+        let r = linear_to_gamma(c.x());
+        let g = linear_to_gamma(c.y());
+        let b = linear_to_gamma(c.z());
 
         let intensity = Interval::new(0.0, 0.999);
 
@@ -52,6 +61,8 @@ pub struct Camera {
 
     /// Count of random samples for each pixel used for antialiasing
     pub sample_per_pixel: i16,
+
+    pub max_recursion_depth: i16,
 }
 
 impl Camera {
@@ -62,7 +73,8 @@ impl Camera {
             viewport_width: 0.0,
             image: img,
             center: Point3::zero(),
-            sample_per_pixel: 4,
+            sample_per_pixel: 100,
+            max_recursion_depth: 10,
         }
     }
 
@@ -110,11 +122,12 @@ impl Camera {
 
         ppm::header(target, &self.image)?;
         for v in 0..self.image.height {
+            eprint!("\rScanning lines [{}/{}]", v + 1, self.image.height);
             for u in 0..self.image.width {
                 let mut color = Color::zero();
                 for _ in 0..self.sample_per_pixel {
                     let ray = self.get_ray(u, v, &viewport_ctx);
-                    color += Camera::ray_color(&ray, &world);
+                    color += Camera::ray_color(&ray, &world, self.max_recursion_depth);
                 }
                 color = color / self.sample_per_pixel as f64;
 
@@ -122,13 +135,19 @@ impl Camera {
             }
             ppm::new_line(target)?;
         }
+        eprint!("\n");
 
         Ok(())
     }
 
-    pub fn ray_color(ray: &Ray, world: &HittableList) -> Color {
+    pub fn ray_color(ray: &Ray, world: &HittableList, depth: i16) -> Color {
+        if depth == 0 {
+            return Color::zero();
+        }
+
         if let Some(rec) = world.hit(ray, Interval::positive()) {
-            return 0.5 * (rec.normal + Vec3::unit());
+            let direction = rec.normal + Vec3::unit_random_on_sphere();
+            return 0.5 * Camera::ray_color(&Ray::new(rec.point, direction), world, depth - 1);
         }
 
         let unit_direction = ray.direction().normal();
@@ -157,15 +176,6 @@ impl Camera {
 
     /// Returns a random point in the square `[-0.5, 0.5] x [-0.5, 0.5] x {0}`
     pub fn sample_square() -> Vec3 {
-        Vec3::new(
-            Camera::normal_random() - 0.5,
-            Camera::normal_random() - 0.5,
-            0.,
-        )
-    }
-
-    /// Returns a random number in the range [0, 1]
-    fn normal_random() -> f64 {
-        rand::random_range(0.0..1.0)
+        Vec3::new(normal_random() - 0.5, normal_random() - 0.5, 0.)
     }
 }

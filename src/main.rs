@@ -3,6 +3,7 @@ mod hittable;
 mod image;
 mod interval;
 mod math;
+mod random;
 mod ray;
 mod sphere;
 
@@ -22,7 +23,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     camera.focal_length = 1.0;
     camera.set_viewport_from_height(2.0);
-    camera.sample_per_pixel = 100;
 
     let mut world = HittableList::new();
     world.add(Sphere::from_center_radius(0., 0., -1., 0.5));

@@ -4,8 +4,11 @@ use crate::ray::Ray;
 
 #[derive(Debug)]
 pub struct HitRecord {
+    /// Point hitted by the ray
     pub point: Point3,
+    /// Normal of the surface hitted by the ray
     pub normal: Vec3,
+    /// Parametrization of the surface hitted by the ray
     pub t: f64,
 
     /// This will be computed calling set_face_normal
